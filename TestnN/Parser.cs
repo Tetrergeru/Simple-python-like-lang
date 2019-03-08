@@ -29,6 +29,7 @@ namespace TestnN
         private static Regex Addition { get; } = new Regex(@"^ *(?<lvalue>[a-zA-Z0-9_]+)(?<index>(\[[0-9]+\])*) *\+=(?<rvalue>.+)$");
         private static Regex Condition { get; } = new Regex(@"^ *if (?<condition>.*): *$");
         private static Regex WhileCycle { get; } = new Regex(@"^ *while (?<condition>.*): *$");
+        private static Regex CForCycle { get; } = new Regex(@"^ *for (?<preparation>[^;]*);(?<condition>[^;]*);(?<action>[^;]*): *$");
 
         private static Regex Index { get; } = new Regex(@"^\[(?<value>[0-9]+)\](?<other>.*)$");
 
@@ -139,28 +140,34 @@ namespace TestnN
             }
         }
 
-        public void Parse(ref int line)
+        public bool Assign(string line)
         {
-            if (line >= Program.Length) return;
-            if (Comment.IsMatch(Program[line]) || Empty.IsMatch(Program[line])) return;
-            
-            var m = Assignment.Match(Program[line]);
+            var m = Assignment.Match(line);
             if (m.Success)
             {
                 EvalLeft(m.Groups["lvalue"].ToString(), m.Groups["index"].ToString()).Value =
                     EvalRight(m.Groups["rvalue"].ToString());
-                return;
+                return true;
             }
-            
-            m = Addition.Match(Program[line]);
+            m = Addition.Match(line);
             if (m.Success)
             {
                 Add(EvalLeft(m.Groups["lvalue"].ToString(), m.Groups["index"].ToString()),
                     EvalRight(m.Groups["rvalue"].ToString()));
-                return;
+                return true;
             }
+            return false;
+        }
 
-            m = Condition.Match(Program[line]);
+        public void Parse(ref int line)
+        {
+            if (line >= Program.Length) return;
+            if (Comment.IsMatch(Program[line]) || Empty.IsMatch(Program[line])) return;
+
+            if (Assign(Program[line]))
+                return;
+            
+            var m = Condition.Match(Program[line]);
             if (m.Success && EvalRight(m.Groups["condition"].ToString()) is bool cond1)
             {
                 var end = GetBlockEnd(line + 1);
@@ -180,6 +187,24 @@ namespace TestnN
                 while (EvalRight(m.Groups["condition"].ToString()) is bool cond2 && cond2)
                     for (int i = start; i < end; i++)
                         Parse(ref i);
+
+                line = end - 1;
+                return;
+            }
+
+            m = CForCycle.Match(Program[line]);
+
+            if (m.Success)
+            {
+                var start = line + 1;
+                var end = GetBlockEnd(line + 1);
+                Assign(m.Groups["preparation"].ToString());
+                while (EvalRight(m.Groups["condition"].ToString()) is bool cond2 && cond2)
+                {
+                    for (int i = start; i < end; i++)
+                        Parse(ref i);
+                    Assign(m.Groups["action"].ToString());
+                }
 
                 line = end - 1;
                 return;

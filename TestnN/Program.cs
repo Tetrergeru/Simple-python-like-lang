@@ -8,7 +8,7 @@ namespace TestnN
     {
         static void Main(string[] args)
         {
-            new Parser("2.txt");
+            new Parser("4.txt");
 
             Console.ReadLine();
         }
